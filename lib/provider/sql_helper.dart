@@ -1,79 +1,95 @@
-import 'package:chat_gemini/models/messagemodel.dart';
+import 'package:chat_gemini/models/database.dart';
 import 'package:sqflite/sqflite.dart' as sql;
 import 'package:chat_gemini/const/const.dart';
 class SQLHelper {
-  static Future<void> criaTabela(sql.Database database) async {
-    await database.execute("""CREATE TABLE $nomeTableChat(
+  static Future<void> criaTabela(String nomeTable, sql.Database database) async {
+    switch(nomeTable){
+      case nomeTableChat:{
+        await database.execute("""CREATE TABLE $nomeTableChat(
         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
         author TEXT,
         message TEXT,
         image TEXT,
         isMe INTEGER,
+        receitas TEXT,
         createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
       """);
+      }break;
+      case nomeTableReceitas:{
+        await database.execute("""CREATE TABLE $nomeTableReceitas(
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        nomeReceita TEXT,
+        author TEXT,
+        numPorcoes INTEGER,
+        tempo INTEGER,
+        categoria TEXT,
+        avaliacao INTEGER,
+        ingredientes TEXT,
+        modoDePreparo TEXT,
+        createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+      """);
+    }break;
+      default: throw Exception("Nome de tabela $nomeTable inexistente!!");
+    }
   }
 
-  static Future<sql.Database> db() async {
+  static Future<sql.Database> db(String nomeTable) async {
     return sql.openDatabase(
-      '$nomeTableChat.db',
+      '$nomeTable.db',
       version: 1,
       onCreate: (sql.Database database, int version) async {
-        await criaTabela(database);
+        await criaTabela(nomeTable,database);
       },
     );
   }
 
-  static Future<int> adicionarMensagem(MessageModel model) async {
-    final db = await SQLHelper.db();
-    final dados = model.toJson();
-    final id = await db.insert(nomeTableChat, dados,
-        conflictAlgorithm: sql.ConflictAlgorithm.replace);
-    return id;
+  static Future<int> create(String nomeTable,dynamic model) async {
+    final db = await SQLHelper.db(nomeTable);
+    int id = -1;
+    if(model is DBModel){
+      final dados = model.toJson();
+       id = await db.insert(nomeTable, dados,
+          conflictAlgorithm: sql.ConflictAlgorithm.replace);
+    }
+    return id ;
   }
 
-  static Future<List<MessageModel>> pegaMensagens() async {
-    final db = await SQLHelper.db();
-    final List<Map<String, dynamic>> dados = await db.query(nomeTableChat, orderBy: "createdAt ASC");
-    return List.generate(dados.length, (index) {
-      return MessageModel(
-        author: dados[index]['author'],
-        message: dados[index]['message'],
-        image: dados[index]['image'],
-        isMe: dados[index]['isMe'] ==1? true : false,
-        createdAt: DateTime.parse(dados[index]['createdAt'])
-      );
-    });
+  static Future<List<Map<String, dynamic>>> readList(String nomeTable,String variavelOrdem) async {
+    final db = await SQLHelper.db(nomeTable);
+    List<Map<String, dynamic>> dados ;
+   try{
+     dados = await db.query(nomeTable, orderBy: "$variavelOrdem ASC");
+   }catch(e){
+      print("Erro na leitura de dados $e");
+      dados = [];
+   }
+    return dados;
   }
 
-  static Future<List<Map<String, dynamic>>> pegaUmProduto(int id) async {
-    final db = await SQLHelper.db();
-    return db.query(nomeTableChat, where: "id = ?", whereArgs: [id], limit: 1);
+  static Future<List<Map<String, dynamic>>> read(String nomeTable,int id) async {
+    final db = await SQLHelper.db(nomeTable);
+    return db.query(nomeTable, where: "id = ?", whereArgs: [id], limit: 1);
   }
 
-/*  static Future<int> atualizaProduto(
-      int id, String nome, double valor, int ean, int qte) async {
-    final db = await SQLHelper.db();
-
-    final dados = {
-      'nome': nome,
-      'valor': valor,
-      'ean': ean,
-      'qte': qte,
-      'createdAt': DateTime.now().toString()
-    };
-
-    final result =
-    await db.update(nomeTableChat, dados, where: "id = ?", whereArgs: [id]);
+  static Future<int> update(String nomeTable,dynamic model,int id) async {
+    final db = await SQLHelper.db(nomeTable);
+    int result = -1;
+    if(model is DBModel) {
+      final dados = model.toJson();
+      result =
+      await db.update(nomeTable, dados, where: "id = ?", whereArgs: [id]);
+    }
     return result;
   }
 
- static Future<void> apagaProduto(int id) async {
-    final db = await SQLHelper.db();
+ static Future<void> delete(String nomeTable,int id) async {
+    final db = await SQLHelper.db(nomeTable);
     try {
-      await db.delete("produtos", where: "id = ?", whereArgs: [id]);
+      await db.delete(nomeTable, where: "id = ?", whereArgs: [id]);
     } catch (err) {
-      debugPrint("Erro ao apagar o item item: $err");
+      print("Erro ao apagar o item item: $err");
     }
-  }*/
+  }
 }

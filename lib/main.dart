@@ -1,9 +1,15 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:chat_gemini/const/const.dart';
 import 'package:chat_gemini/models/messagemodel.dart';
+import 'package:chat_gemini/models/receitamodel.dart';
 import 'package:chat_gemini/provider/chatprovider.dart';
 import 'package:chat_gemini/provider/sql_helper.dart';
 import 'package:chat_gemini/widgets/inputtextchatwidget.dart';
 import 'package:chat_gemini/widgets/messagebubble.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 void main() {
   runApp(const MaterialApp(home: ChatIA()));
@@ -19,8 +25,10 @@ class ChatIA extends StatefulWidget {
 class _ChatIAState extends State<ChatIA> {
   final TextEditingController textEditingController = TextEditingController();
   final ChatProvider chatProvider = ChatProvider();
-
-  List<MessageModel> messageList = [];
+  final imagePicker = ImagePicker();
+  File? image;
+  bool _isVisible = false;
+  List<dynamic> messageList = [];
 
   final ScrollController scrollController = ScrollController();
 
@@ -61,7 +69,8 @@ class _ChatIAState extends State<ChatIA> {
                             itemBuilder: (context, index) =>
                                 MessageBubbleWidget(
                                     mensagemChat: messageList[index],
-                                    isMe: messageList[index].isMe),
+                                    isMe: messageList[index].isMe,
+                                    image: messageList[index].image),
                             separatorBuilder:
                                 (BuildContext context, int index) =>
                                     const Divider(
@@ -69,9 +78,17 @@ class _ChatIAState extends State<ChatIA> {
                             ),
                           ))),
               InputTextChatWidget(
-                  mensagemTextController: textEditingController,
-                  handleSubmit: _sendMessage,
-              imagePicker: _imagePicker ),
+                mensagemTextController: textEditingController,
+                handleSubmit: _sendMessage,
+                imageCam: _pick,
+                imageGallery: _pick,
+                imageRemove: () {
+                  setState(() {
+                    image = null;
+                  });
+                },
+                image: image,
+              ),
             ],
           ),
         ],
@@ -83,19 +100,49 @@ class _ChatIAState extends State<ChatIA> {
     if (message.isNotEmpty) {
       textEditingController.clear();
       MessageModel mensagem = MessageModel(
-          author: "jerson", message: message, isMe: true, createdAt: DateTime.now());
-      SQLHelper.adicionarMensagem(mensagem).then((_) {
+          author: "jerson",
+          message: message,
+          isMe: true,
+          image: image?.path,
+          createdAt: DateTime.now());
+
+      SQLHelper.create(nomeTableChat, mensagem).then((_) {
         setState(() {
           messageList.add(mensagem);
+          image = null;
         });
       });
-      MessageModel mensagem2 = MessageModel(
-          author: "IA", message: "olá", isMe: false, createdAt: DateTime.now());
-      SQLHelper.adicionarMensagem(mensagem).then((_) {
-        setState(() {
-          messageList.add(mensagem2);
+      chatProvider.teste().then((value) {
+        Map<String, dynamic> dados = jsonDecode(value!);
+        List<ReceitaModel> receitas =
+            ReceitaModel.listaReceitas(dados["result"]["receitas"]);
+        List<int> idsReceitas = [];
+        for (var element in receitas) {
+          SQLHelper.create(nomeTableReceitas, element)
+              .then((value) => {idsReceitas.add(value)});
+        }
+
+        MessageModel chatIA = MessageModel(
+            author: "chat",
+            message: dados["result"]["textoResposta"],
+            isMe: false,
+            receitas: idsReceitas,
+            createdAt: DateTime.now());
+        print(chatIA.toJson());
+        SQLHelper.create(nomeTableChat, chatIA).then((value) {
+          setState(() {
+            messageList.add(chatIA);
+          });
         });
       });
+      List<ReceitaModel> receitas = [];
+      SQLHelper.readList(nomeTableReceitas, "id").then((value) {
+        receitas =  List.generate(value.length, (index) {
+          return ReceitaModel.fromMap(value[index]);
+        });
+      });
+      //requestGemini(message);
+
       _scrollToBottom();
     }
   }
@@ -109,13 +156,44 @@ class _ChatIAState extends State<ChatIA> {
   }
 
   void _carregaMensagens() {
-    SQLHelper.pegaMensagens().then((value) => setState(() {
-      messageList = value;
-    }));
+    SQLHelper.readList(nomeTableChat, "createdAt").then((value) => setState(() {
+          messageList = List.generate(value.length, (index) {
+            return MessageModel.fromMap(value[index]);
+          });
+        }));
   }
-  void _imagePicker(){
+
+  void requestGemini(String message) {
+    String response = "Não foi possível responder";
+    chatProvider.requestWithImage(message, image!).then((value) {
+      if (value != null) response = value;
+      MessageModel IAResponse = MessageModel(
+          author: "IA",
+          message: response,
+          isMe: false,
+          createdAt: DateTime.now());
+      SQLHelper.create(nomeTableChat, IAResponse).then((_) {
+        setState(() {
+          messageList.add(IAResponse);
+        });
+      });
+    });
+
+  }
+
+  void _setVisibility() {
     setState(() {
       _isVisible = !_isVisible;
     });
+  }
+
+  void _pick(ImageSource source) async {
+    final pickedFile = await imagePicker.pickImage(source: source);
+    if (pickedFile != null) {
+      setState(() {
+        image = File(pickedFile.path);
+      });
+      _setVisibility();
+    }
   }
 }
