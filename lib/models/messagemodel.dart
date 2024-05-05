@@ -26,19 +26,21 @@ class MessageModel implements DBModel{
 
 
   factory MessageModel.fromMap(Map<String, dynamic> map) {
+    List<int> idsReceitas = [];
+    String r = map["receitas"].replaceAll("[","").replaceAll("]","").replaceAll("null","");
 
-    List<int> listaReceitas = [];
-    if (map["receitas"] != null) {
-      if (map["receitas"] is List) {
-        listaReceitas = List<int>.from(map["receitas"]);
-      }
-    }
+    if(r != ""){
+      List<String> split = r.split(",");
+      print(split.toList());
+      idsReceitas  = split.map((str) => int.parse(str)).toList();
+     }
+
     return MessageModel(
       author: map["author"],
       message: map["message"],
       image: map["image"],
       isMe: map["isMe"] == 1 ? true : false,
-      receitas: listaReceitas,
+      receitas: idsReceitas,
       createdAt: DateTime.parse(map["createdAt"]),
     );
   }

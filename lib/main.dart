@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:chat_gemini/const/const.dart';
+import 'package:chat_gemini/models/IAmodel.dart';
 import 'package:chat_gemini/models/messagemodel.dart';
 import 'package:chat_gemini/models/receitamodel.dart';
 import 'package:chat_gemini/provider/chatprovider.dart';
@@ -45,6 +46,7 @@ class _ChatIAState extends State<ChatIA> {
     super.dispose();
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -63,20 +65,31 @@ class _ChatIAState extends State<ChatIA> {
               Flexible(
                   child: Builder(
                       builder: (context) => ListView.separated(
-                            padding: const EdgeInsets.all(10),
-                            itemCount: messageList.length,
-                            controller: scrollController,
-                            itemBuilder: (context, index) =>
-                                MessageBubbleWidget(
-                                    mensagemChat: messageList[index],
-                                    isMe: messageList[index].isMe,
-                                    image: messageList[index].image),
-                            separatorBuilder:
-                                (BuildContext context, int index) =>
-                                    const Divider(
-                              color: Colors.transparent,
-                            ),
-                          ))),
+                        padding: const EdgeInsets.all(10),
+                        itemCount: messageList.length,
+                        controller: scrollController,
+                        itemBuilder: (context, index) {
+                         if(messageList[index] is MessageModel){
+                           return Align(
+                             alignment: Alignment.centerRight,
+                             child: MessageBubbleWidget(
+                                   mensagemChat: messageList[index],
+                                   receitas: [])
+                           );
+                         } else {
+                           return  Align(
+                               alignment: Alignment.centerLeft,
+                             child: MessageBubbleWidget(
+                                   mensagemChat: messageList[index].message,
+                                   receitas: messageList[index].receitas )
+                           );
+                         }
+                        },
+                        separatorBuilder: (BuildContext context, int index) => const Divider(
+                          color: Colors.transparent,
+                        ),
+                      )
+                  )),
               InputTextChatWidget(
                 mensagemTextController: textEditingController,
                 handleSubmit: _sendMessage,
@@ -105,43 +118,13 @@ class _ChatIAState extends State<ChatIA> {
           isMe: true,
           image: image?.path,
           createdAt: DateTime.now());
-
       SQLHelper.create(nomeTableChat, mensagem).then((_) {
         setState(() {
           messageList.add(mensagem);
           image = null;
         });
       });
-      chatProvider.teste().then((value) {
-        Map<String, dynamic> dados = jsonDecode(value!);
-        List<ReceitaModel> receitas =
-            ReceitaModel.listaReceitas(dados["result"]["receitas"]);
-        List<int> idsReceitas = [];
-        for (var element in receitas) {
-          SQLHelper.create(nomeTableReceitas, element)
-              .then((value) => {idsReceitas.add(value)});
-        }
-
-        MessageModel chatIA = MessageModel(
-            author: "chat",
-            message: dados["result"]["textoResposta"],
-            isMe: false,
-            receitas: idsReceitas,
-            createdAt: DateTime.now());
-        print(chatIA.toJson());
-        SQLHelper.create(nomeTableChat, chatIA).then((value) {
-          setState(() {
-            messageList.add(chatIA);
-          });
-        });
-      });
-      List<ReceitaModel> receitas = [];
-      SQLHelper.readList(nomeTableReceitas, "id").then((value) {
-        receitas =  List.generate(value.length, (index) {
-          return ReceitaModel.fromMap(value[index]);
-        });
-      });
-      //requestGemini(message);
+      requestGemini(message);
 
       _scrollToBottom();
     }
@@ -157,28 +140,62 @@ class _ChatIAState extends State<ChatIA> {
 
   void _carregaMensagens() {
     SQLHelper.readList(nomeTableChat, "createdAt").then((value) => setState(() {
-          messageList = List.generate(value.length, (index) {
+      List<MessageModel> messages =[];
+      List<ReceitaModel> ListaReceitas = [];
+      IAModel model ;
+          messages = List.generate(value.length, (index) {
             return MessageModel.fromMap(value[index]);
           });
+
+          for(var message in messages){
+            if(message.isMe){
+              messageList.add(message);
+            } else {
+              final receitas = message.receitas;
+              if(receitas != null){
+               receitas.forEach((element) {
+                 SQLHelper.read(nomeTableReceitas, element).then((value){
+                   ListaReceitas.add(ReceitaModel.fromMap(value[0]));
+                 });
+               });
+              }
+              model = IAModel(message: message, receitas: ListaReceitas);
+              messageList.add(model);
+            }
+          }
         }));
   }
 
-  void requestGemini(String message) {
-    String response = "Não foi possível responder";
-    chatProvider.requestWithImage(message, image!).then((value) {
-      if (value != null) response = value;
-      MessageModel IAResponse = MessageModel(
-          author: "IA",
-          message: response,
+
+
+
+  void requestGemini(String message) async {
+    await chatProvider.requestChat(message, image).then((value) {
+      Map<String, dynamic> dados = jsonDecode(value!);
+      List<int> idsReceitas = [];
+      List<ReceitaModel> receitas = [];
+
+      if (dados["result"]["receitas"] != null) {
+
+           receitas = ReceitaModel.listaReceitas(dados["result"]["receitas"]);
+        for (var element in receitas) {
+          SQLHelper.create(nomeTableReceitas, element).then((value) {
+            idsReceitas.add(value);
+          });
+        }
+      }
+      MessageModel chatIA = MessageModel(
+          author: "chat",
+          message: dados["result"]["textoResposta"],
           isMe: false,
+          receitas: idsReceitas,
           createdAt: DateTime.now());
-      SQLHelper.create(nomeTableChat, IAResponse).then((_) {
+      SQLHelper.create(nomeTableChat, chatIA).then((value) {
         setState(() {
-          messageList.add(IAResponse);
+          messageList.add(IAModel(message: chatIA, receitas: receitas));
         });
       });
     });
-
   }
 
   void _setVisibility() {

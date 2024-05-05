@@ -19,8 +19,10 @@ class SQLHelper {
       case nomeTableReceitas:{
         await database.execute("""CREATE TABLE $nomeTableReceitas(
         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        key TEXT,
         nomeReceita TEXT,
-        author TEXT,
+        descricao TEXT,
+        image TEXT,
         numPorcoes INTEGER,
         tempo INTEGER,
         categoria TEXT,
