@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:google_generative_ai/google_generative_ai.dart';
 
 class ChatProvider {
-  String apiKey = "AIzaSyDy21QzNyTiWKLYhAW-BoT_eW7flqdAG40";
+  String apiKey = "COLOQUE SUA KEY";
   String nameModelImage = "gemini-1.0-pro-vision-latest";
   String nameModel = "gemini-1.0-pro";
   String instrucoesSistema = """
