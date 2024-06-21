@@ -1,16 +1,37 @@
-# chat_gemini
+# Chat_Gemini
 
-A new Flutter project.
+## Descrição
 
-## Getting Started
+O Chat_Gemini é um projeto que utiliza o modelo Gemini para interpretar imagens e textos enviados pelos usuários, fornecendo receitas culinárias de acordo com a solicitação. Os usuários podem enviar fotos de pratos ou ingredientes, ou simplesmente textos pedindo receitas específicas.
 
-This project is a starting point for a Flutter application.
+## Funcionalidades
 
-A few resources to get you started if this is your first Flutter project:
+- Envio de fotos de pratos ou ingredientes para obter a receita correspondente.
+- Envio de textos com pedidos de receitas específicas.
+- Retorno de receitas detalhadas incluindo nome, descrição, número de porções, tempo de preparo, categoria, ingredientes e modo de preparo.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Estrutura da Resposta
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+O modelo Gemini retorna um JSON no seguinte formato:
+
+```json
+{
+  "result": {
+    "textoResposta": "",
+    "receitas": [
+      {
+        "nomeReceita": "",
+        "descricao": "",
+        "numPorcoes": "",
+        "tempo": "",
+        "categoria": "",
+        "ingredientes": [],
+        "modoDePreparo": []
+      }
+    ]
+  }
+}
+```
+## Requisitos
+- Gemini 1.0 para interpretação de textos.
+- Gemini 1.0 Pro Vision para interpretação de imagens e textos.
